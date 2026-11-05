@@ -26,7 +26,10 @@ CAP_W = 82
 CAP_H = 26
 TUX_X = 96
 TUX_R = 17  # radio de colisión
-PAD = 12  # margen superior del sprite de Tux (cuernos / aureola)
+PAD = 12  # margen superior del sprite de Tux (cuernos)
+BOT = 6  # margen inferior (pies colgando)
+TUX_H = 62 + PAD + BOT
+TUX_OFF = (PAD - BOT) / 2  # el centro del cuerpo no coincide con el de la imagen
 
 BASE_SPEED = 150.0
 BASE_GAP = 168.0
@@ -254,12 +257,12 @@ def make_vignette():
     return pygame.transform.smoothscale(s, (W, H))
 
 
-def make_tux(frame, variant=0):
+def make_tux(wing=3, variant=0, eyes="open", feet=0):
     """Tux dibujado con primitivas, 4x supermuestreado.
-    frame: 0 alas arriba, 1 medio, 2 abajo.
-    variant: 0 normal, 1 ojos rojos, 2 + cuernos, 3 + aureola."""
+    wing: 0 alas arriba .. 5 alas abajo.  variant: 0 normal, 1 ojos rojos, 2+ cuernos (3 = aureola aparte).
+    eyes: open | blink | scared | dead.  feet: 0 recogidos, 1 colgando."""
     S = 4
-    w, h = 54, 62 + PAD
+    w, h = 54, TUX_H
     big = pygame.Surface((w * S, h * S), pygame.SRCALPHA)
 
     def E(color, rect, width=0):
@@ -269,15 +272,26 @@ def make_tux(frame, variant=0):
     def P(color, pts):
         pygame.draw.polygon(big, color, [(x * S, (y + PAD) * S) for x, y in pts])
 
+    def L(color, a, b, wd):
+        pygame.draw.line(big, color, (a[0] * S, (a[1] + PAD) * S), (b[0] * S, (b[1] + PAD) * S), int(wd * S))
+
     black, white, orange = (28, 28, 34), (250, 250, 250), (250, 168, 30)
-    E(orange, (10, 52, 18, 9))
-    E(orange, (26, 52, 18, 9))
-    wy = {0: -6, 1: 4, 2: 14}[frame]
+    eye = (255, 64, 40) if variant >= 1 else white
+    if feet == 0:
+        E(orange, (10, 52, 18, 9))
+        E(orange, (26, 52, 18, 9))
+    else:
+        for cx, ang in ((15, 24), (39, -24)):
+            fs = pygame.Surface((18 * S, 9 * S), pygame.SRCALPHA)
+            pygame.draw.ellipse(fs, orange, fs.get_rect())
+            r = pygame.transform.rotate(fs, ang)
+            big.blit(r, (cx * S - r.get_width() // 2, (PAD + 60) * S - r.get_height() // 2))
+    k = wing / 5.0
+    wy = lerp(-8, 16, k)
     for sx, sign in ((2, -1), (46, 1)):
         surf = pygame.Surface((14 * S, 30 * S), pygame.SRCALPHA)
         pygame.draw.ellipse(surf, black, (0, 0, 14 * S, 30 * S))
-        ang = sign * {0: 38, 1: 8, 2: -26}[frame]
-        r = pygame.transform.rotate(surf, ang)
+        r = pygame.transform.rotate(surf, sign * lerp(42, -30, k))
         big.blit(r, (sx * S - (r.get_width() - 14 * S) // 2 - (6 * S if sign < 0 else 0),
                      (22 + wy + PAD) * S - (r.get_height() - 30 * S) // 2))
     if variant >= 2:  # cuernos
@@ -289,25 +303,33 @@ def make_tux(frame, variant=0):
     E(white, (30, 11, 12, 13))
     E(black, (14, 8, 26, 14))
     for ex in (17, 29):
-        if variant >= 1:
-            E((255, 64, 40), (ex, 11, 9, 11))
-            E(black, (ex + 4, 12, 3, 8))
-        else:
+        if eyes == "blink":
             E(white, (ex, 11, 9, 11))
-            E(black, (ex + 4, 14, 4, 5))
+            L(black, (ex + 0.5, 17), (ex + 8.5, 17), 2.2)
+        elif eyes == "scared":
+            E(eye, (ex - 1, 10, 11, 13))
+            E(black, (ex + 3.5, 15, 3, 3))
+        elif eyes == "dead":
+            E(white, (ex, 11, 9, 11))
+            L(black, (ex + 1.5, 13), (ex + 7.5, 20), 1.8)
+            L(black, (ex + 7.5, 13), (ex + 1.5, 20), 1.8)
+        else:
+            E(eye, (ex, 11, 9, 11))
+            if variant >= 1:
+                E(black, (ex + 4, 12, 3, 8))
+            else:
+                E(black, (ex + 4, 14, 4, 5))
     E(orange, (17, 20, 20, 9))
     E((222, 140, 20), (20, 26, 14, 5))
-    if variant >= 3:  # aureola
-        E((255, 214, 64), (15, -10, 24, 8), 3)
     return pygame.transform.smoothscale(big, (w, h))
 
 
 def make_icon_surface(size=128):
-    t = make_tux(1)
+    t = make_tux(3)
     s = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(s, (120, 190, 232), (size // 2, size // 2), size // 2)
     th = int(size * 0.72)
-    t = pygame.transform.smoothscale(t, (int(54 * th / (62 + PAD)), th))
+    t = pygame.transform.smoothscale(t, (int(54 * th / TUX_H), th))
     s.blit(t, ((size - t.get_width()) // 2, (size - t.get_height()) // 2))
     return s
 
@@ -372,7 +394,9 @@ class Game:
         self.clock = pygame.time.Clock()
 
         self.assets = [make_assets(t) for t in THEMES]
-        self.tux = [[make_tux(f, v) for f in range(3)] for v in range(4)]
+        self.tux_cache = {}
+        self.warm = [(k, v, e, f) for v in range(4) for e in ("open", "blink", "scared", "dead")
+                     for f in (0, 1) for k in range(6)]
         self.vignette = make_vignette()
         self.flash_surf = pygame.Surface((W, H))
         self.flash_surf.fill((255, 255, 255))
@@ -427,6 +451,17 @@ class Game:
         self.meteors = []
         self.meteor_cd = 0.0
         self.trail = []
+        self.puffs = []
+        self.ang = 0.0
+        self.spin = 0.0
+        self.rest = 80.0
+        self.bounces = 0
+        self.landed = False
+        self.flap_t = 9.0
+        self.sq = 0.0
+        self.wing_k = 0.5
+        self.blink_t = 0.0
+        self.blink_cd = random.uniform(1.0, 3.0)
         for i in range(4):
             self._add_pipe(W + 120 + i * BASE_SPACING)
 
@@ -449,6 +484,11 @@ class Game:
             self.state = PLAYING
         if self.state == PLAYING:
             self.vy = FLAP_V
+            self.flap_t = 0.0
+            self.sq = 1.0
+            for _ in range(3):
+                self.puffs.append([TUX_X - 10, self.y + 8, random.uniform(-80, -25), random.uniform(30, 90),
+                                   0.32, 0.32, (255, 255, 255), 3, 0.0, "p"])
             self._play("flap")
 
     def _play(self, name):
@@ -483,6 +523,13 @@ class Game:
         self.state = DEAD
         self.dead_t = 0.0
         self.shake = 0.35
+        self.spin = random.choice((-1, 1)) * random.uniform(420, 640)
+        self.bounces = 0
+        self.landed = False
+        self.vy = -150.0  # rebote al chocar
+        for _ in range(16):
+            self.puffs.append([TUX_X, self.y, random.uniform(-150, 150), random.uniform(-220, -40), 1.0, 1.0,
+                               random.choice(((28, 28, 34), (245, 245, 245))), 3, 420.0, "f"])
         self._play("hit")
         if self.score > self.best:
             self.best = self.score
@@ -564,16 +611,82 @@ class Game:
             tr[4] -= dt
         self.trail = [tr for tr in self.trail if tr[4] > 0]
 
+    # -- animación de Tux
+    def _land(self):
+        self.landed = True
+        self.ang = (self.ang + 180) % 360 - 180
+        self.rest = 80.0 if self.ang >= 0 else -80.0
+        self._dust()
+
+    def _dust(self):
+        for _ in range(6):
+            self.puffs.append([TUX_X + random.uniform(-10, 10), GROUND_Y - 2, random.uniform(-70, 70),
+                               random.uniform(-60, -15), 0.4, 0.4, (235, 240, 245), 4, 0.0, "p"])
+
+    def _update_anim(self, dt):
+        self.flap_t += dt
+        self.sq = max(0.0, self.sq - dt / 0.22)
+        self.blink_cd -= dt
+        if self.blink_cd <= 0:
+            self.blink_t, self.blink_cd = 0.13, random.uniform(2.0, 4.5)
+        self.blink_t = max(0.0, self.blink_t - dt)
+        if self.state == READY:
+            self.wing_k = 0.5 + 0.5 * math.sin(self.t * 6)
+            self.ang = math.sin(self.t * 3) * 5
+        elif self.state == DEAD:
+            self.wing_k = approach(self.wing_k, 0.0, 6 * dt)
+        else:
+            if self.flap_t < 0.30:
+                p = self.flap_t / 0.30
+                self.wing_k = p / 0.55 if p < 0.55 else lerp(1.0, 0.4, (p - 0.55) / 0.45)
+            else:
+                self.wing_k = approach(self.wing_k, 0.05 if self.vy > 250 else 0.45, 5 * dt)
+            target = max(-28.0, min(70.0, self.vy * 0.09))
+            self.ang += (target - self.ang) * (1 - math.exp(-14 * dt))
+        for p in self.puffs:
+            p[0] += p[2] * dt
+            p[1] += p[3] * dt
+            p[3] += p[8] * dt
+            p[4] -= dt
+        self.puffs = [p for p in self.puffs if p[4] > 0]
+        if self.warm:  # precarga los sprites de a uno por cuadro
+            k, v, e, f = self.warm.pop(0)
+            self.tux_img(k, v, e, f)
+
+    def tux_img(self, k, variant, eyes, feet):
+        key = (k, variant, eyes, feet)
+        im = self.tux_cache.get(key)
+        if im is None:
+            im = self.tux_cache[key] = make_tux(k, variant, eyes, feet)
+        return im
+
     # -- física
     def update(self, dt):
         self.t += dt
         self._update_ambience(dt)
 
+        self._update_anim(dt)
         if self.state == DEAD:
             self.dead_t += dt
-            if self.y < GROUND_Y - TUX_R:
+            gy = GROUND_Y - TUX_R
+            if not self.landed and (self.y < gy - 0.5 or self.vy < 0):
                 self.vy = min(MAX_FALL, self.vy + GRAVITY * dt)
-                self.y = min(GROUND_Y - TUX_R, self.y + self.vy * dt)
+                self.y = min(gy, self.y + self.vy * dt)
+                self.ang += self.spin * dt
+                if self.y >= gy:
+                    if self.bounces < 1:
+                        self.bounces += 1
+                        self.vy = -max(140.0, self.vy * 0.3)
+                        self.spin *= 0.4
+                        self.shake = max(self.shake, 0.12)
+                        self._dust()
+                    else:
+                        self.vy = 0.0
+                        self._land()
+            elif not self.landed:
+                self._land()
+            else:
+                self.ang = approach(self.ang, self.rest, 500 * dt)
             return
 
         self.scroll = (self.scroll + self.speed * dt) % 48
@@ -684,12 +797,38 @@ class Game:
         for x, y, _, _, life in self.trail:
             pygame.draw.circle(c, tcol, (int(x), int(y)), 1 + int(life * 5))
 
-        frame = 1
-        if self.state != DEAD:
-            frame = (0, 1, 2, 1)[int(self.t * 12) % 4] if (self.vy < 120 or self.state == READY) else 2
-        ang = max(-28, min(70, self.vy * 0.09)) if self.state != READY else 0
-        img = pygame.transform.rotozoom(self.tux[TUX_VARIANT[L]][frame], -ang, 1.0)
-        c.blit(img, img.get_rect(center=(TUX_X, self.y - PAD / 2)))
+        for x, y, _, _, life, maxl, pcol, sz, _, kind in self.puffs:
+            f = life / maxl
+            if kind == "p":
+                pygame.draw.circle(c, pcol, (int(x), int(y)), max(1, int(sz * (0.4 + f))))
+            else:  # pluma
+                r = (1 - f) * 14
+                pygame.draw.line(c, pcol, (x, y), (x + math.cos(r) * 6, y + math.sin(r) * 3), 3)
+
+        var = TUX_VARIANT[L]
+        playing = self.state == PLAYING
+        if self.state == DEAD:
+            eyes = "dead"
+        elif self.blink_t > 0:
+            eyes = "blink"
+        elif playing and self.vy > 420:
+            eyes = "scared"
+        else:
+            eyes = "open"
+        feet = 1 if (self.state == DEAD or (playing and self.vy > 150)) else 0
+        img = self.tux_img(int(round(self.wing_k * 5)), var, eyes, feet)
+        fall = min(1.0, max(0.0, (self.vy - 300) / 400)) if playing else 0.0
+        sx = 1 - 0.14 * self.sq - 0.07 * fall
+        sy = 1 + 0.20 * self.sq + 0.10 * fall
+        if abs(sx - 1) > 0.01 or abs(sy - 1) > 0.01:
+            img = pygame.transform.smoothscale(img, (max(1, int(img.get_width() * sx)), max(1, int(img.get_height() * sy))))
+        img = pygame.transform.rotozoom(img, -self.ang, 1.0)
+        c.blit(img, img.get_rect(center=(TUX_X, self.y - TUX_OFF)))
+        th = math.radians(self.ang)
+        if var >= 3:
+            self._draw_halo(c, th)
+        if self.state == DEAD and self.landed:
+            self._draw_stars(c, th)
 
         col, _, _ = FLAKES[L]
         for fx, fy, sz in self.flakes:
@@ -725,6 +864,24 @@ class Game:
             m = int(self.shake * 22)
             out.blit(c, (random.randint(-m, m), random.randint(-m, m)))
         self._present(out)
+
+    def _draw_halo(self, c, th):
+        d = 38 + 3 * math.sin(self.t * 4)
+        pulse = 0.6 + 0.4 * math.sin(self.t * 6)
+        s = pygame.Surface((46, 24), pygame.SRCALPHA)
+        pygame.draw.ellipse(s, (255, 214, 64, int(80 * pulse)), (0, 0, 46, 24))
+        pygame.draw.ellipse(s, (255, 214, 64), (9, 7, 28, 10), 3)
+        r = pygame.transform.rotate(s, -self.ang)
+        c.blit(r, r.get_rect(center=(TUX_X + d * math.sin(th), self.y - d * math.cos(th))))
+
+    def _draw_stars(self, c, th):
+        bx, by = TUX_X + 34 * math.sin(th), self.y - 34 * math.cos(th)
+        for i in range(3):
+            a = self.t * 5 + i * 2.094
+            x, y = bx + math.cos(a) * 20, by + math.sin(a) * 6
+            pts = [(x + math.cos(k * math.pi / 4) * (5 if k % 2 == 0 else 2),
+                    y + math.sin(k * math.pi / 4) * (5 if k % 2 == 0 else 2)) for k in range(8)]
+            pygame.draw.polygon(c, (255, 225, 90), pts)
 
     def _draw_banner(self, c):
         a = min(1.0, self.banner_t / 0.5, (3.4 - self.banner_t) / 0.4)

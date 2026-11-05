@@ -10,6 +10,8 @@ pero también se juega en escritorio.
 - **El mundo muta con tu puntaje:** Edén de Hielo (0) → El Deshielo (8) → Plaga de Fuego (16) →
   Langostas y Relámpagos (26) → Apocalipsis (38). Cambian cielo, columnas, suelo, clima y hasta Tux
   (ojos rojos, cuernos, aureola). Además sube la velocidad, el hueco se estrecha y las columnas se mueven.
+- Tux está animado: aleteo en 6 posiciones, squash & stretch, parpadeo, pies que cuelgan al caer,
+  cara de susto en picada, plumas y polvo, y una muerte con vueltas, rebote y estrellitas.
 - Todos los gráficos se dibujan por código: sin imágenes de terceros
 - Se inicia a pantalla completa automáticamente en pantallas ≤ 900 px (móviles)
 
