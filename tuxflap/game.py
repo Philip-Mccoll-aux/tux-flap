@@ -1293,6 +1293,11 @@ def main(argv=None):
         fs = True
     elif "--windowed" in argv:
         fs = False
+    try:
+        pygame.display.init()
+    except pygame.error as e:
+        sys.exit(f"Tux Flap no pudo abrir la pantalla: {e}\n"
+                 "¿Estás dentro de una sesión gráfica? Prueba con SDL_VIDEODRIVER=wayland o SDL_VIDEODRIVER=x11.")
     Game(fs).run()
 
 

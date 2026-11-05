@@ -1,3 +1,5 @@
+# Manifiesto de DESARROLLO para compilar y probar el Flatpak en local.
+# No es apto para enviar a Flathub: usa ruedas precompiladas de pygame-ce y una fuente local (ver README).
 app-id: io.github.philip_mccoll_aux.TuxFlap
 runtime: org.freedesktop.Platform
 runtime-version: '25.08'

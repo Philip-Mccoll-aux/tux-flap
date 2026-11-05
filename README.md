@@ -30,6 +30,24 @@ python3 -m tuxflap          # opciones: --fullscreen | --windowed
 
 En Debian/Raspberry Pi OS: `sudo apt install python3-pygame` también sirve.
 
+## Instalar en la Raspberry Pi (Plasma Mobile) o en cualquier Linux
+
+Sin Flatpak y sin root (solo `apt` para las dependencias). En la terminal de la Pi, o por SSH:
+
+```bash
+sudo apt update && sudo apt install -y git python3-pygame
+git clone https://github.com/Philip-Mccoll-aux/tux-flap
+cd tux-flap && ./install.sh
+```
+
+Queda en el menú de aplicaciones como **Tux Flap** (categoría Juegos) y se lanza también con `~/.local/bin/tuxflap`.
+
+- **Actualizar:** `cd tux-flap && git pull && ./install.sh`
+- **Desinstalar:** `./install.sh --uninstall` (tu récord se conserva en `~/.local/share/tuxflap/score.json`)
+- Si no aparece en el menú, espera unos segundos o cierra y abre la sesión.
+- Si el toque o el tamaño de la pantalla fallan, prueba con el driver de video a mano:
+  `SDL_VIDEODRIVER=wayland tuxflap` (nativo) o `SDL_VIDEODRIVER=x11 tuxflap` (XWayland).
+
 ## Construir el Flatpak
 
 ```bash
@@ -39,20 +57,19 @@ flatpak run io.github.philip_mccoll_aux.TuxFlap
 ```
 
 El manifiesto incluye ruedas de pygame-ce para **x86_64 y aarch64** (la Raspberry Pi 4).
+Es un manifiesto **de desarrollo** para probar el Flatpak en local: usa ruedas precompiladas, por lo que no sirve tal cual para Flathub (ver abajo).
 
-## Publicarlo para que aparezca en Discover
+## Discover y Flathub
 
-Discover (con `plasma-discover-backend-flatpak`) lee el catálogo de **Flathub**. Pasos:
+Discover muestra el catálogo de **Flathub** y las fuentes Flatpak que añada el usuario. Para entrar en Flathub hay que cumplir sus
+[requisitos](https://docs.flathub.org/docs/for-app-authors/requirements), entre ellos:
 
-1. Sube este proyecto al repositorio `Philip-Mccoll-aux/tux-flap` (las URLs de `data/*.metainfo.xml` ya apuntan ahí).
-2. **ID de la app**: `io.github.philip_mccoll_aux.TuxFlap`, que corresponde a la cuenta de GitHub que envía el PR a Flathub.
-   Si algún día lo cambias, renombra los 3 archivos de `data/`, el manifiesto y `APP_ID` en `tuxflap/game.py`.
-3. Valida: `appstreamcli validate --pedantic data/*.metainfo.xml` y `desktop-file-validate data/*.desktop`.
-4. Abre un PR en <https://github.com/flathub/flathub> (rama `new-pr`) siguiendo
-   <https://docs.flathub.org/docs/for-app-authors/submission>. Tras la aprobación, aparecerá en Discover.
+- compilar todo desde el código fuente (el manifiesto de este repo usa ruedas precompiladas de pygame-ce);
+- un historial de desarrollo y mantenimiento sostenido;
+- su [política de IA generativa](https://docs.flathub.org/docs/for-app-authors/requirements#generative-ai-policy):
+  declarar el material generado con IA, y escribir a mano el manifiesto y el pull request.
 
-Mientras tanto se puede instalar localmente con el paso de construcción de arriba;
-Discover la mostrará en «Instaladas».
+Mientras tanto, la forma de instalarlo es `./install.sh` (arriba).
 
 ## Licencia
 
