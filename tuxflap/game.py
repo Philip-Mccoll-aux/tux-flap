@@ -26,8 +26,10 @@ CAP_W = 82
 CAP_H = 26
 TUX_X = 96
 TUX_R = 17  # radio de colisión
-PAD = 12  # margen superior del sprite de Tux (cuernos)
+PAD = 12  # margen superior del sprite de Tux
 BOT = 6  # margen inferior (pies colgando)
+XPAD = 14  # margen lateral (alas grandes)
+TUX_W = 54 + 2 * XPAD
 TUX_H = 62 + PAD + BOT
 TUX_OFF = (PAD - BOT) / 2  # el centro del cuerpo no coincide con el de la imagen
 
@@ -49,7 +51,9 @@ LEVELS = (
     dict(name="Apocalipsis", sub="Ya no hay vuelta atrás", dead="Consumado"),
 )
 AMP = (0, 0, 0, 22, 38)  # oscilación vertical de las columnas
-TUX_VARIANT = (0, 0, 1, 2, 3)  # normal, ojos rojos, + cuernos, + aureola
+TUX_FORM = (0, 0, 0, 1, 2)  # sprite: normal, alas blancas, serafín de seis alas
+AURA = ((0, 0), (40, 60), (50, 80), (64, 100), (86, 130))  # radio, opacidad del aura dorada
+HALO = (0, 0, 1, 2, 3)  # nivel de la aureola
 
 # Paletas por nivel
 THEMES = (
@@ -257,26 +261,40 @@ def make_vignette():
     return pygame.transform.smoothscale(s, (W, H))
 
 
-def make_tux(wing=3, variant=0, eyes="open", feet=0):
+def make_tux(wing=3, form=0, eyes="open", feet=0):
     """Tux dibujado con primitivas, 4x supermuestreado.
-    wing: 0 alas arriba .. 5 alas abajo.  variant: 0 normal, 1 ojos rojos, 2+ cuernos (3 = aureola aparte).
+    wing: 0 alas arriba .. 5 alas abajo.
+    form: 0 normal, 1 alas blancas de plumas, 2 serafín de seis alas.
     eyes: open | blink | scared | dead.  feet: 0 recogidos, 1 colgando."""
     S = 4
-    w, h = 54, TUX_H
+    w, h = TUX_W, TUX_H
     big = pygame.Surface((w * S, h * S), pygame.SRCALPHA)
 
     def E(color, rect, width=0):
         x, y, rw, rh = rect
-        pygame.draw.ellipse(big, color, (x * S, (y + PAD) * S, rw * S, rh * S), width * S)
-
-    def P(color, pts):
-        pygame.draw.polygon(big, color, [(x * S, (y + PAD) * S) for x, y in pts])
+        pygame.draw.ellipse(big, color, ((x + XPAD) * S, (y + PAD) * S, rw * S, rh * S), width * S)
 
     def L(color, a, b, wd):
-        pygame.draw.line(big, color, (a[0] * S, (a[1] + PAD) * S), (b[0] * S, (b[1] + PAD) * S), int(wd * S))
+        pygame.draw.line(big, color, ((a[0] + XPAD) * S, (a[1] + PAD) * S), ((b[0] + XPAD) * S, (b[1] + PAD) * S),
+                         int(wd * S))
+
+    def wing_surf(ww, wh, angel):
+        surf = pygame.Surface((ww * S, wh * S), pygame.SRCALPHA)
+        if not angel:
+            pygame.draw.ellipse(surf, (28, 28, 34), surf.get_rect())
+            return surf
+        # plumas superpuestas, de abajo hacia arriba
+        for i, fy in enumerate((0.42, 0.22, 0.0)):
+            r = pygame.Rect(0, int(fy * wh * S), ww * S, int(wh * S * 0.58))
+            pygame.draw.ellipse(surf, (250, 250, 255), r)
+            pygame.draw.ellipse(surf, (176, 196, 226), r, int(1.4 * S))
+        return surf
+
+    def put_wing(cx, cy, surf, ang):
+        r = pygame.transform.rotate(surf, ang)
+        big.blit(r, ((cx + XPAD) * S - r.get_width() // 2, (cy + PAD) * S - r.get_height() // 2))
 
     black, white, orange = (28, 28, 34), (250, 250, 250), (250, 168, 30)
-    eye = (255, 64, 40) if variant >= 1 else white
     if feet == 0:
         E(orange, (10, 52, 18, 9))
         E(orange, (26, 52, 18, 9))
@@ -284,19 +302,19 @@ def make_tux(wing=3, variant=0, eyes="open", feet=0):
         for cx, ang in ((15, 24), (39, -24)):
             fs = pygame.Surface((18 * S, 9 * S), pygame.SRCALPHA)
             pygame.draw.ellipse(fs, orange, fs.get_rect())
-            r = pygame.transform.rotate(fs, ang)
-            big.blit(r, (cx * S - r.get_width() // 2, (PAD + 60) * S - r.get_height() // 2))
+            put_wing(cx, 60, fs, ang)
     k = wing / 5.0
     wy = lerp(-8, 16, k)
-    for sx, sign in ((2, -1), (46, 1)):
-        surf = pygame.Surface((14 * S, 30 * S), pygame.SRCALPHA)
-        pygame.draw.ellipse(surf, black, (0, 0, 14 * S, 30 * S))
-        r = pygame.transform.rotate(surf, sign * lerp(42, -30, k))
-        big.blit(r, (sx * S - (r.get_width() - 14 * S) // 2 - (6 * S if sign < 0 else 0),
-                     (22 + wy + PAD) * S - (r.get_height() - 30 * S) // 2))
-    if variant >= 2:  # cuernos
-        P((190, 24, 24), [(12, 12), (9, -5), (23, 6)])
-        P((190, 24, 24), [(42, 12), (45, -5), (31, 6)])
+    base = lerp(42, -30, k)
+    for cx, sign in ((3, -1), (53, 1)):
+        if form == 0:
+            put_wing(cx, 22 + wy + 15, wing_surf(14, 30, False), sign * base)
+        elif form == 1:
+            put_wing(cx, 22 + wy + 17, wing_surf(18, 36, True), sign * base)
+        else:  # serafín: tres pares
+            put_wing(cx - sign * 1, 22 + wy + 3, wing_surf(14, 28, True), sign * (base + 30))
+            put_wing(cx - sign * 1, 22 + wy + 31, wing_surf(14, 28, True), sign * (base - 32))
+            put_wing(cx, 22 + wy + 17, wing_surf(19, 38, True), sign * base)
     E(black, (6, 4, 42, 54))
     E(white, (14, 22, 26, 33))
     E(white, (12, 11, 12, 13))
@@ -307,21 +325,37 @@ def make_tux(wing=3, variant=0, eyes="open", feet=0):
             E(white, (ex, 11, 9, 11))
             L(black, (ex + 0.5, 17), (ex + 8.5, 17), 2.2)
         elif eyes == "scared":
-            E(eye, (ex - 1, 10, 11, 13))
+            E(white, (ex - 1, 10, 11, 13))
             E(black, (ex + 3.5, 15, 3, 3))
         elif eyes == "dead":
             E(white, (ex, 11, 9, 11))
             L(black, (ex + 1.5, 13), (ex + 7.5, 20), 1.8)
             L(black, (ex + 7.5, 13), (ex + 1.5, 20), 1.8)
         else:
-            E(eye, (ex, 11, 9, 11))
-            if variant >= 1:
-                E(black, (ex + 4, 12, 3, 8))
-            else:
-                E(black, (ex + 4, 14, 4, 5))
+            E(white, (ex, 11, 9, 11))
+            E(black, (ex + 4, 14, 4, 5))
     E(orange, (17, 20, 20, 9))
     E((222, 140, 20), (20, 26, 14, 5))
     return pygame.transform.smoothscale(big, (w, h))
+
+
+def make_aura(r, alpha):
+    s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+    steps = 16
+    for i in range(steps):
+        rr = int(lerp(r, 6, i / (steps - 1)))
+        pygame.draw.circle(s, (255, 228, 140, int(alpha * ((i + 1) / steps) ** 1.6)), (r, r), rr)
+    return s
+
+
+def make_rays(size=200, n=12):
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    c = size / 2
+    for i in range(n):
+        a = i * 2 * math.pi / n
+        pts = [(c, c)] + [(c + math.cos(a + d) * c, c + math.sin(a + d) * c) for d in (-0.07, 0.07)]
+        pygame.draw.polygon(s, (255, 240, 170, 70), pts)
+    return s
 
 
 def make_icon_surface(size=128):
@@ -329,7 +363,7 @@ def make_icon_surface(size=128):
     s = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(s, (120, 190, 232), (size // 2, size // 2), size // 2)
     th = int(size * 0.72)
-    t = pygame.transform.smoothscale(t, (int(54 * th / TUX_H), th))
+    t = pygame.transform.smoothscale(t, (int(TUX_W * th / TUX_H), th))
     s.blit(t, ((size - t.get_width()) // 2, (size - t.get_height()) // 2))
     return s
 
@@ -395,9 +429,11 @@ class Game:
 
         self.assets = [make_assets(t) for t in THEMES]
         self.tux_cache = {}
-        self.warm = [(k, v, e, f) for v in range(4) for e in ("open", "blink", "scared", "dead")
+        self.warm = [(k, v, e, f) for v in range(3) for e in ("open", "blink", "scared", "dead")
                      for f in (0, 1) for k in range(6)]
         self.vignette = make_vignette()
+        self.auras = [make_aura(r, a) if r else None for r, a in AURA]
+        self.rays = make_rays()
         self.flash_surf = pygame.Surface((W, H))
         self.flash_surf.fill((255, 255, 255))
         self.font_big = pygame.font.Font(None, 96)
@@ -489,6 +525,10 @@ class Game:
             for _ in range(3):
                 self.puffs.append([TUX_X - 10, self.y + 8, random.uniform(-80, -25), random.uniform(30, 90),
                                    0.32, 0.32, (255, 255, 255), 3, 0.0, "p"])
+            if TUX_FORM[self.lvl] >= 1:
+                for _ in range(2):
+                    self.puffs.append([TUX_X - 14, self.y + 4, random.uniform(-60, -20), random.uniform(-20, 20), 0.9, 0.9,
+                                       (240, 244, 255), 3, 90.0, "f"])
             self._play("flap")
 
     def _play(self, name):
@@ -502,6 +542,9 @@ class Game:
             self.prev, self.lvl, self.mix = self.lvl, new, 0.0
             self.banner_t = 3.4
             self._play("level")
+            for _ in range(24):
+                self.puffs.append([TUX_X, self.y, random.uniform(-140, 140), random.uniform(-150, 40), 0.9, 0.9,
+                                   (255, 232, 150), 3, -30.0, "p"])
             if new >= 2:
                 self.strike(bolt=False)
 
@@ -713,7 +756,7 @@ class Game:
             self.pipes.pop(0)
             self._add_pipe(self.pipes[-1][0] + BASE_SPACING + 15 * self.lvl)
 
-        if L >= 2:  # estela de brasas
+        if L >= 1:  # estela de destellos dorados
             self.trail.append([TUX_X - 12, self.y + random.uniform(-2, 8), -self.speed * 0.4 + random.uniform(-20, 20),
                                random.uniform(-20, 40), 0.5])
 
@@ -793,10 +836,19 @@ class Game:
             pygame.draw.line(c, (255, 220, 140), (mx, my), (mx - vx * 0.04, my - vy * 0.04), 2)
             pygame.draw.circle(c, (255, 250, 220), (int(mx), int(my)), 3)
 
-        tcol = ((255, 150, 40), (255, 150, 40), (255, 150, 40), (255, 70, 50), (255, 210, 90))[L]
+        tcol = (255, 236, 150) if L < 4 else (255, 250, 215)
         for x, y, _, _, life in self.trail:
             pygame.draw.circle(c, tcol, (int(x), int(y)), 1 + int(life * 5))
 
+        if AURA[L][0]:
+            pulse = 0.75 + 0.25 * math.sin(self.t * 3)
+            if L >= 4:
+                r = pygame.transform.rotate(self.rays, self.t * 18)
+                r.set_alpha(int(255 * pulse))
+                c.blit(r, r.get_rect(center=(TUX_X, self.y)))
+            au = self.auras[L]
+            au.set_alpha(int(255 * pulse))
+            c.blit(au, au.get_rect(center=(TUX_X, self.y)))
         for x, y, _, _, life, maxl, pcol, sz, _, kind in self.puffs:
             f = life / maxl
             if kind == "p":
@@ -805,7 +857,7 @@ class Game:
                 r = (1 - f) * 14
                 pygame.draw.line(c, pcol, (x, y), (x + math.cos(r) * 6, y + math.sin(r) * 3), 3)
 
-        var = TUX_VARIANT[L]
+        form = TUX_FORM[L]
         playing = self.state == PLAYING
         if self.state == DEAD:
             eyes = "dead"
@@ -816,7 +868,7 @@ class Game:
         else:
             eyes = "open"
         feet = 1 if (self.state == DEAD or (playing and self.vy > 150)) else 0
-        img = self.tux_img(int(round(self.wing_k * 5)), var, eyes, feet)
+        img = self.tux_img(int(round(self.wing_k * 5)), form, eyes, feet)
         fall = min(1.0, max(0.0, (self.vy - 300) / 400)) if playing else 0.0
         sx = 1 - 0.14 * self.sq - 0.07 * fall
         sy = 1 + 0.20 * self.sq + 0.10 * fall
@@ -825,8 +877,8 @@ class Game:
         img = pygame.transform.rotozoom(img, -self.ang, 1.0)
         c.blit(img, img.get_rect(center=(TUX_X, self.y - TUX_OFF)))
         th = math.radians(self.ang)
-        if var >= 3:
-            self._draw_halo(c, th)
+        if HALO[L]:
+            self._draw_halo(c, th, HALO[L])
         if self.state == DEAD and self.landed:
             self._draw_stars(c, th)
 
@@ -865,12 +917,16 @@ class Game:
             out.blit(c, (random.randint(-m, m), random.randint(-m, m)))
         self._present(out)
 
-    def _draw_halo(self, c, th):
-        d = 38 + 3 * math.sin(self.t * 4)
+    def _draw_halo(self, c, th, level):
+        d = 34 + 3 * math.sin(self.t * 4)
         pulse = 0.6 + 0.4 * math.sin(self.t * 6)
-        s = pygame.Surface((46, 24), pygame.SRCALPHA)
-        pygame.draw.ellipse(s, (255, 214, 64, int(80 * pulse)), (0, 0, 46, 24))
-        pygame.draw.ellipse(s, (255, 214, 64), (9, 7, 28, 10), 3)
+        rw, rh = ((28, 10), (34, 12), (42, 15))[level - 1]
+        s = pygame.Surface((rw + 18, rh + 14), pygame.SRCALPHA)
+        cx, cy = s.get_width() // 2, s.get_height() // 2
+        pygame.draw.ellipse(s, (255, 214, 64, int((70 + 30 * level) * pulse)), s.get_rect())
+        pygame.draw.ellipse(s, (255, 226, 96), (cx - rw // 2, cy - rh // 2, rw, rh), 3)
+        if level >= 2:
+            pygame.draw.ellipse(s, (255, 248, 200), (cx - rw // 2 + 3, cy - rh // 2 + 2, rw - 6, rh - 4), 1)
         r = pygame.transform.rotate(s, -self.ang)
         c.blit(r, r.get_rect(center=(TUX_X + d * math.sin(th), self.y - d * math.cos(th))))
 
