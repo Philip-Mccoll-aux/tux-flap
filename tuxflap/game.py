@@ -3,6 +3,8 @@
 
 Resolución lógica vertical (360x640) escalada a cualquier pantalla, pensada
 para móviles Linux (Plasma Mobile) pero jugable también con ratón o teclado.
+
+A medida que sube el puntaje el mundo muta: del Edén de Hielo al Apocalipsis.
 """
 import json
 import math
@@ -19,18 +21,78 @@ GROUND_Y = H - GROUND_H
 GRAVITY = 1500.0
 FLAP_V = -430.0
 MAX_FALL = 700.0
-SPEED = 150.0
 PIPE_W = 66
 CAP_W = 82
 CAP_H = 26
-GAP = 168
-SPACING = 215
 TUX_X = 96
 TUX_R = 17  # radio de colisión
+PAD = 12  # margen superior del sprite de Tux (cuernos / aureola)
+
+BASE_SPEED = 150.0
+BASE_GAP = 168.0
+BASE_SPACING = 215.0
 
 APP_ID = "io.github.philip_mccoll_aux.TuxFlap"
 
 READY, PLAYING, DEAD = range(3)
+
+# Puntaje necesario para entrar a cada nivel
+LEVEL_SCORES = (0, 8, 16, 26, 38)
+LEVELS = (
+    dict(name="Edén de Hielo", sub="Todo comienza en paz", dead="Congelado"),
+    dict(name="El Deshielo", sub="Algo despierta bajo el hielo", dead="Derretido"),
+    dict(name="Plaga de Fuego", sub="Y el cielo ardió", dead="Calcinado"),
+    dict(name="Langostas y Relámpagos", sub="Se abrió el abismo", dead="Devorado"),
+    dict(name="Apocalipsis", sub="Ya no hay vuelta atrás", dead="Consumado"),
+)
+AMP = (0, 0, 0, 22, 38)  # oscilación vertical de las columnas
+TUX_VARIANT = (0, 0, 1, 2, 3)  # normal, ojos rojos, + cuernos, + aureola
+
+# Paletas por nivel
+THEMES = (
+    dict(sky=((88, 160, 214), (200, 232, 248)), far=((150, 190, 220), (245, 250, 255)),
+         near=((112, 160, 200), (250, 253, 255)),
+         pipe=((92, 168, 214), (158, 220, 245), (232, 250, 255)), crack=(255, 255, 255, 70),
+         edge=(70, 140, 190), spike=((170, 226, 247), (110, 180, 220)),
+         ground=((236, 246, 252), (205, 228, 242), (170, 205, 228), (250, 253, 255)), orb=None, seam=False),
+    dict(sky=((110, 104, 150), (250, 196, 136)), far=((150, 140, 160), (220, 210, 200)),
+         near=((110, 110, 130), (190, 185, 185)),
+         pipe=((70, 130, 160), (120, 180, 195), (200, 235, 235)), crack=(255, 255, 255, 50),
+         edge=(60, 110, 140), spike=((150, 205, 220), (90, 150, 175)),
+         ground=((200, 206, 205), (150, 160, 160), (110, 120, 125), (225, 230, 228)),
+         orb=("sun", (250, 210, 150)), seam=False),
+    dict(sky=((58, 10, 12), (210, 78, 22)), far=((90, 30, 24), (255, 120, 30)),
+         near=((54, 20, 18), (255, 150, 40)),
+         pipe=((34, 18, 18), (86, 38, 28), (170, 80, 36)), crack=(255, 150, 40, 230),
+         edge=(20, 8, 8), spike=((190, 70, 20), (255, 150, 40)),
+         ground=((60, 26, 20), (38, 18, 16), (255, 110, 20), (255, 160, 40)),
+         orb=("sun", (255, 90, 30)), seam=True),
+    dict(sky=((12, 6, 20), (116, 18, 26)), far=((40, 14, 26), (220, 40, 40)),
+         near=((22, 8, 16), (255, 70, 50)),
+         pipe=((16, 8, 14), (58, 18, 28), (150, 40, 52)), crack=(255, 60, 50, 230),
+         edge=(8, 2, 6), spike=((120, 24, 30), (220, 50, 50)),
+         ground=((40, 14, 18), (22, 8, 12), (200, 30, 30), (255, 70, 50)),
+         orb=("moon", (200, 30, 30)), seam=True),
+    dict(sky=((0, 0, 0), (150, 16, 8)), far=((30, 6, 6), (255, 160, 40)),
+         near=((14, 4, 4), (255, 210, 90)),
+         pipe=((150, 30, 10), (240, 104, 22), (255, 226, 130)), crack=(255, 240, 160, 220),
+         edge=(110, 20, 6), spike=((255, 200, 70), (220, 90, 20)),
+         ground=((50, 10, 8), (26, 6, 6), (255, 120, 20), (255, 220, 100)),
+         orb=("eclipse", None), seam=True),
+)
+
+# Partículas ambientales por nivel: color, velocidad vertical (base, extra), deriva horizontal
+FLAKES = (
+    ((255, 255, 255), (28, 24), 0),
+    ((210, 225, 240), (60, 50), -10),
+    ((255, 150, 40), (-30, -40), 0),
+    ((150, 130, 130), (20, 25), -25),
+    ((255, 200, 80), (-60, -70), 0),
+)
+
+
+def level_for(score):
+    return sum(1 for s in LEVEL_SCORES[1:] if score >= s)
 
 
 # --------------------------------------------------------------- utilidades
@@ -65,16 +127,44 @@ def mix(c1, c2, t):
     return tuple(int(lerp(c1[i], c2[i], t)) for i in range(3))
 
 
+def approach(v, target, step):
+    return min(target, v + step) if v < target else max(target, v - step)
+
+
 # ------------------------------------------------------------------ gráficos
-def make_sky():
-    s = pygame.Surface((W, H))
-    top, bot = (88, 160, 214), (200, 232, 248)
-    for y in range(H):
-        pygame.draw.line(s, mix(top, bot, y / H), (0, y), (W, y))
+def glow(pos, color, r_max, r_min, a_max):
+    s = pygame.Surface((W, H), pygame.SRCALPHA)
+    steps = 14
+    for i in range(steps):
+        r = int(lerp(r_max, r_min, i / (steps - 1)))
+        pygame.draw.circle(s, (*color, int(a_max * (i + 1) / steps)), pos, r)
     return s
 
 
-def make_mountains(seed, base, amp, col, snow):
+def make_sky(theme):
+    s = pygame.Surface((W, H))
+    top, bot = theme["sky"]
+    for y in range(H):
+        pygame.draw.line(s, mix(top, bot, y / H), (0, y), (W, y))
+    orb = theme["orb"]
+    if orb:
+        kind, col = orb
+        if kind == "sun":
+            s.blit(glow((90, 350), col, 150, 40, 150), (0, 0))
+            pygame.draw.circle(s, mix(col, (255, 255, 255), 0.4), (90, 350), 38)
+        elif kind == "moon":
+            s.blit(glow((265, 140), col, 120, 46, 130), (0, 0))
+            pygame.draw.circle(s, (190, 30, 30), (265, 140), 46)
+            for dx, dy, r in ((-14, -10, 9), (12, 8, 12), (-6, 20, 6), (18, -18, 5)):
+                pygame.draw.circle(s, (140, 20, 24), (265 + dx, 140 + dy), r)
+        elif kind == "eclipse":
+            s.blit(glow((235, 170), (255, 140, 40), 150, 56, 200), (0, 0))
+            pygame.draw.circle(s, (255, 230, 170), (235, 170), 57, 3)
+            pygame.draw.circle(s, (0, 0, 0), (235, 170), 54)
+    return s
+
+
+def make_mountains(seed, amp, col, cap):
     rnd = random.Random(seed)
     width = W * 2
     s = pygame.Surface((width, 260), pygame.SRCALPHA)
@@ -88,67 +178,100 @@ def make_mountains(seed, base, amp, col, snow):
     pts[-2] = (width, pts[1][1])  # empalme sin salto al repetir
     pygame.draw.polygon(s, col, pts)
     for px, py in pts[1:-1]:
-        cap = [(px, py), (px - 16, py + 26), (px - 5, py + 20), (px + 4, py + 28), (px + 16, py + 24)]
-        pygame.draw.polygon(s, snow, cap)
+        c = [(px, py), (px - 16, py + 26), (px - 5, py + 20), (px + 4, py + 28), (px + 16, py + 24)]
+        pygame.draw.polygon(s, cap, c)
     return s
 
 
-def make_cylinder(width, height):
-    """Cilindro de hielo con degradado horizontal y brillos."""
+def make_cylinder(width, height, pal, crack):
+    """Columna cilíndrica con degradado horizontal y brillos."""
     s = pygame.Surface((width, height), pygame.SRCALPHA)
-    dark, mid, light = (92, 168, 214), (158, 220, 245), (232, 250, 255)
+    dark, mid, light = pal
     for x in range(width):
         t = x / (width - 1)
-        # sombreado de cilindro: luz desde arriba-izquierda
         k = math.sin(t * math.pi)
         c = mix(dark, mid, k) if t > 0.28 else mix(mid, light, 1 - t / 0.28)
         c = mix(c, light, max(0.0, 1 - abs(t - 0.24) / 0.09) * 0.7)
         pygame.draw.line(s, c, (x, 0), (x, height))
-    # vetas de hielo
     rnd = random.Random(7)
     for _ in range(height // 22):
         x = rnd.randint(8, width - 9)
         y = rnd.randint(0, height)
-        pygame.draw.line(s, (255, 255, 255, 70), (x, y), (x + rnd.randint(-3, 3), y + rnd.randint(14, 40)), 1)
+        x2, y2 = x + rnd.randint(-3, 3), y + rnd.randint(14, 40)
+        if crack[3] > 120:  # grietas incandescentes
+            pygame.draw.line(s, (*crack[:3], 70), (x, y), (x2, y2), 5)
+        pygame.draw.line(s, crack, (x, y), (x2, y2), 1)
     return s
 
 
-def make_cap(width, height):
+def make_cap(width, height, pal, crack, edge):
     s = pygame.Surface((width, height), pygame.SRCALPHA)
-    body = make_cylinder(width, height)
+    s.blit(make_cylinder(width, height, pal, crack), (0, 0))
     mask = pygame.Surface((width, height), pygame.SRCALPHA)
     pygame.draw.rect(mask, (255, 255, 255, 255), (0, 0, width, height), border_radius=9)
-    s.blit(body, (0, 0))
     s.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-    pygame.draw.rect(s, (70, 140, 190), (0, 0, width, height), 2, border_radius=9)
+    pygame.draw.rect(s, edge, (0, 0, width, height), 2, border_radius=9)
     return s
 
 
-def make_ground():
+def make_ground(theme):
+    top, body, tooth, line = theme["ground"]
     s = pygame.Surface((W + 48, GROUND_H))
-    s.fill((236, 246, 252))
-    pygame.draw.rect(s, (205, 228, 242), (0, 10, W + 48, GROUND_H - 10))
+    s.fill(top)
+    pygame.draw.rect(s, body, (0, 10, W + 48, GROUND_H - 10))
     for x in range(0, W + 48, 24):
-        pygame.draw.polygon(s, (170, 205, 228), [(x, 22), (x + 12, 22), (x + 6, 44)])
-    pygame.draw.line(s, (250, 253, 255), (0, 0), (W + 48, 0), 4)
+        pygame.draw.polygon(s, tooth, [(x, 22), (x + 12, 22), (x + 6, 44)])
+    if theme["seam"]:
+        for x in range(0, W + 48, 48):
+            pygame.draw.lines(s, line, False, [(x, 52), (x + 12, 62), (x + 6, 70), (x + 20, GROUND_H)], 2)
+    pygame.draw.line(s, line, (0, 0), (W + 48, 0), 4)
     return s
 
 
-def make_tux(frame):
-    """Tux dibujado con primitivas, 4x supermuestreado. frame: 0 alas arriba, 1 medio, 2 abajo."""
+def make_assets(theme):
+    pipe, crack, edge = theme["pipe"], theme["crack"], theme["edge"]
+    cap = make_cap(CAP_W, CAP_H, pipe, crack, edge)
+    return dict(
+        sky=make_sky(theme),
+        far=make_mountains(1, 150, theme["far"][0], theme["far"][1]),
+        near=make_mountains(2, 110, theme["near"][0], theme["near"][1]),
+        cyl=make_cylinder(PIPE_W, H, pipe, crack),
+        cap=cap,
+        cap_flip=pygame.transform.flip(cap, False, True),
+        ground=make_ground(theme),
+        spike=theme["spike"],
+    )
+
+
+def make_vignette():
+    sw, sh = 36, 64
+    s = pygame.Surface((sw, sh), pygame.SRCALPHA)
+    for y in range(sh):
+        for x in range(sw):
+            dx, dy = (x / (sw - 1) - 0.5) * 2, (y / (sh - 1) - 0.5) * 2
+            d = min(1.0, math.hypot(dx, dy) / 1.25)
+            s.set_at((x, y), (50, 0, 0, int(255 * d ** 2.4)))
+    return pygame.transform.smoothscale(s, (W, H))
+
+
+def make_tux(frame, variant=0):
+    """Tux dibujado con primitivas, 4x supermuestreado.
+    frame: 0 alas arriba, 1 medio, 2 abajo.
+    variant: 0 normal, 1 ojos rojos, 2 + cuernos, 3 + aureola."""
     S = 4
-    w, h = 54, 62
+    w, h = 54, 62 + PAD
     big = pygame.Surface((w * S, h * S), pygame.SRCALPHA)
 
-    def E(color, rect):
+    def E(color, rect, width=0):
         x, y, rw, rh = rect
-        pygame.draw.ellipse(big, color, (x * S, y * S, rw * S, rh * S))
+        pygame.draw.ellipse(big, color, (x * S, (y + PAD) * S, rw * S, rh * S), width * S)
+
+    def P(color, pts):
+        pygame.draw.polygon(big, color, [(x * S, (y + PAD) * S) for x, y in pts])
 
     black, white, orange = (28, 28, 34), (250, 250, 250), (250, 168, 30)
-    # pies
     E(orange, (10, 52, 18, 9))
     E(orange, (26, 52, 18, 9))
-    # alas (detrás del cuerpo)
     wy = {0: -6, 1: 4, 2: 14}[frame]
     for sx, sign in ((2, -1), (46, 1)):
         surf = pygame.Surface((14 * S, 30 * S), pygame.SRCALPHA)
@@ -156,21 +279,26 @@ def make_tux(frame):
         ang = sign * {0: 38, 1: 8, 2: -26}[frame]
         r = pygame.transform.rotate(surf, ang)
         big.blit(r, (sx * S - (r.get_width() - 14 * S) // 2 - (6 * S if sign < 0 else 0),
-                     (22 + wy) * S - (r.get_height() - 30 * S) // 2))
-    # cuerpo
+                     (22 + wy + PAD) * S - (r.get_height() - 30 * S) // 2))
+    if variant >= 2:  # cuernos
+        P((190, 24, 24), [(12, 12), (9, -5), (23, 6)])
+        P((190, 24, 24), [(42, 12), (45, -5), (31, 6)])
     E(black, (6, 4, 42, 54))
     E(white, (14, 22, 26, 33))
-    # cabeza / mejillas
     E(white, (12, 11, 12, 13))
     E(white, (30, 11, 12, 13))
     E(black, (14, 8, 26, 14))
-    # ojos
     for ex in (17, 29):
-        E(white, (ex, 11, 9, 11))
-        E(black, (ex + 4, 14, 4, 5))
-    # pico
+        if variant >= 1:
+            E((255, 64, 40), (ex, 11, 9, 11))
+            E(black, (ex + 4, 12, 3, 8))
+        else:
+            E(white, (ex, 11, 9, 11))
+            E(black, (ex + 4, 14, 4, 5))
     E(orange, (17, 20, 20, 9))
     E((222, 140, 20), (20, 26, 14, 5))
+    if variant >= 3:  # aureola
+        E((255, 214, 64), (15, -10, 24, 8), 3)
     return pygame.transform.smoothscale(big, (w, h))
 
 
@@ -178,7 +306,8 @@ def make_icon_surface(size=128):
     t = make_tux(1)
     s = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(s, (120, 190, 232), (size // 2, size // 2), size // 2)
-    t = pygame.transform.smoothscale(t, (int(54 * size / 80), int(62 * size / 80)))
+    th = int(size * 0.72)
+    t = pygame.transform.smoothscale(t, (int(54 * th / (62 + PAD)), th))
     s.blit(t, ((size - t.get_width()) // 2, (size - t.get_height()) // 2))
     return s
 
@@ -191,19 +320,32 @@ def make_sounds():
             pygame.mixer.init(frequency=22050, size=-16, channels=1)
         rate = pygame.mixer.get_init()[0]
 
-        def tone(freqs, dur, vol=0.35, decay=True):
-            n = int(rate * dur)
+        def to_sound(samples):
             buf = bytearray()
-            for i in range(n):
-                f = lerp(freqs[0], freqs[-1], i / n)
-                env = (1 - i / n) if decay else 1.0
-                v = int(32767 * vol * env * math.sin(2 * math.pi * f * i / rate))
-                buf += v.to_bytes(2, "little", signed=True)
+            for v in samples:
+                buf += int(v).to_bytes(2, "little", signed=True)
             return pygame.mixer.Sound(buffer=bytes(buf))
+
+        def tone(freqs, dur, vol=0.35):
+            n = int(rate * dur)
+            return to_sound(32767 * vol * (1 - i / n) *
+                            math.sin(2 * math.pi * lerp(freqs[0], freqs[-1], i / n) * i / rate)
+                            for i in range(n))
+
+        def thunder(dur=0.8, vol=0.55):
+            n = int(rate * dur)
+            rnd = random.Random(3)
+            out, prev = [], 0.0
+            for i in range(n):
+                prev = prev * 0.94 + rnd.uniform(-1, 1) * 0.06
+                out.append(32767 * vol * 4 * prev * (1 - i / n) ** 2)
+            return to_sound(out)
 
         snd["flap"] = tone((420, 760), 0.09)
         snd["score"] = tone((880, 1320), 0.14)
         snd["hit"] = tone((300, 70), 0.30, 0.5)
+        snd["level"] = tone((330, 990), 0.55, 0.3)
+        snd["thunder"] = thunder()
     except Exception:
         pass
     return snd
@@ -226,21 +368,22 @@ class Game:
         self.win_size = (405, 720)
         self._make_window()
         self.canvas = pygame.Surface((W, H))
+        self.buf = pygame.Surface((W, H))
         self.clock = pygame.time.Clock()
 
-        self.sky = make_sky()
-        self.far = make_mountains(1, 0, 150, (150, 190, 220), (245, 250, 255))
-        self.near = make_mountains(2, 0, 110, (112, 160, 200), (250, 253, 255))
-        self.ground = make_ground()
-        self.cyl = make_cylinder(PIPE_W, H)
-        self.cap = make_cap(CAP_W, CAP_H)
-        self.cap_flip = pygame.transform.flip(self.cap, False, True)
-        self.tux = [make_tux(i) for i in range(3)]
+        self.assets = [make_assets(t) for t in THEMES]
+        self.tux = [[make_tux(f, v) for f in range(3)] for v in range(4)]
+        self.vignette = make_vignette()
+        self.flash_surf = pygame.Surface((W, H))
+        self.flash_surf.fill((255, 255, 255))
         self.font_big = pygame.font.Font(None, 96)
         self.font_mid = pygame.font.Font(None, 44)
+        self.font_ban = pygame.font.Font(None, 36)
         self.font_sm = pygame.font.Font(None, 30)
         self.sounds = make_sounds()
         self.flakes = [[random.uniform(0, W), random.uniform(0, H), random.uniform(0.5, 1.6)] for _ in range(46)]
+        self.locusts = [[random.uniform(0, W), random.uniform(60, GROUND_Y - 40), random.uniform(0, 6.3),
+                         random.uniform(150, 240)] for _ in range(34)]
         self.best = load_best()
         self.running = True
         self.reset()
@@ -262,23 +405,44 @@ class Game:
         self.state = READY
         self.y = H * 0.42
         self.vy = 0.0
-        self.pipes = []  # [x, gap_center, scored]
+        self.pipes = []  # [x, centro_base, puntuado, fase]
         self.score = 0
         self.t = 0.0
+        self.pt = 0.0  # tiempo de juego (mueve las columnas)
         self.dead_t = 0.0
         self.shake = 0.0
         self.new_best = False
         self.scroll = 0.0
-        first = W + 120
+        self.lvl = 0
+        self.prev = 0
+        self.mix = 1.0
+        self.banner_t = 0.0
+        self.speed = BASE_SPEED
+        self.gap = BASE_GAP
+        self.amp = 0.0
+        self.flash = 0.0
+        self.bolt = None
+        self.bolt_t = 0.0
+        self.next_bolt = random.uniform(1.5, 3.5)
+        self.meteors = []
+        self.meteor_cd = 0.0
+        self.trail = []
         for i in range(4):
-            self._add_pipe(first + i * SPACING)
+            self._add_pipe(W + 120 + i * BASE_SPACING)
+
+    def _bounds(self):
+        return 60 + self.gap / 2, GROUND_Y - 60 - self.gap / 2
 
     def _add_pipe(self, x):
-        lo = 70 + GAP // 2
-        hi = GROUND_Y - 70 - GAP // 2
+        lo, hi = self._bounds()
+        m = AMP[self.lvl]
         prev = self.pipes[-1][1] if self.pipes else (lo + hi) / 2
-        c = min(hi, max(lo, prev + random.uniform(-190, 190)))
-        self.pipes.append([x, c, False])
+        c = min(hi - m, max(lo + m, prev + random.uniform(-190, 190)))
+        self.pipes.append([x, c, False, random.uniform(0, 6.3)])
+
+    def center(self, p):
+        lo, hi = self._bounds()
+        return min(hi, max(lo, p[1] + self.amp * math.sin(self.pt * 1.7 + p[3])))
 
     def flap(self):
         if self.state == READY:
@@ -291,6 +455,29 @@ class Game:
         s = self.sounds.get(name)
         if s:
             s.play()
+
+    def _check_level(self):
+        new = level_for(self.score)
+        if new > self.lvl:
+            self.prev, self.lvl, self.mix = self.lvl, new, 0.0
+            self.banner_t = 3.4
+            self._play("level")
+            if new >= 2:
+                self.strike(bolt=False)
+
+    def strike(self, bolt=True):
+        self.flash = 1.0
+        self.shake = max(self.shake, 0.2)
+        self._play("thunder")
+        if bolt:
+            x = random.uniform(40, W - 40)
+            pts = [(x, 0)]
+            y = 0
+            while y < GROUND_Y:
+                y += random.uniform(30, 55)
+                x += random.uniform(-26, 26)
+                pts.append((x, min(y, GROUND_Y)))
+            self.bolt, self.bolt_t = pts, 0.16
 
     def die(self):
         self.state = DEAD
@@ -328,16 +515,59 @@ class Game:
         else:
             self.flap()
 
+    # -- ambiente (corre siempre)
+    def _update_ambience(self, dt):
+        L = self.lvl
+        if self.mix < 1:
+            self.mix = min(1.0, self.mix + dt / 1.8)
+        self.banner_t = max(0.0, self.banner_t - dt)
+        self.flash = max(0.0, self.flash - dt * 2.5)
+        if self.shake > 0:
+            self.shake = max(0.0, self.shake - dt)
+        if self.bolt_t > 0:
+            self.bolt_t -= dt
+
+        col, (vb, vx), drift = FLAKES[L]
+        for f in self.flakes:
+            vy = vb + vx * f[2]
+            f[1] += vy * dt
+            f[0] += (math.sin(self.t * 0.8 + f[1] * 0.02) * 12 + drift) * dt
+            if vy > 0 and f[1] > H:
+                f[0], f[1] = random.uniform(0, W + 40), -4
+            elif vy < 0 and f[1] < -4:
+                f[0], f[1] = random.uniform(0, W), H + 4
+            f[0] %= W + 40
+
+        if L >= 3:
+            for lc in self.locusts:
+                lc[0] -= lc[3] * dt
+                lc[1] += math.sin(self.t * 5 + lc[2]) * 40 * dt
+                if lc[0] < -10:
+                    lc[0], lc[1] = W + random.uniform(10, 80), random.uniform(60, GROUND_Y - 40)
+            if L >= 3 and self.state != READY:
+                self.next_bolt -= dt
+                if self.next_bolt <= 0:
+                    self.strike()
+                    self.next_bolt = random.uniform(2.5, 6) if L == 3 else random.uniform(1.5, 4)
+        if L >= 4:
+            self.meteor_cd -= dt
+            if self.meteor_cd <= 0:
+                self.meteor_cd = random.uniform(0.15, 0.4)
+                self.meteors.append([random.uniform(W * 0.3, W + 120), -20, -170, 330])
+        for m in self.meteors:
+            m[0] += m[2] * dt
+            m[1] += m[3] * dt
+        self.meteors = [m for m in self.meteors if m[1] < GROUND_Y and m[0] > -40]
+        for tr in self.trail:
+            tr[0] += tr[2] * dt
+            tr[1] += tr[3] * dt
+            tr[4] -= dt
+        self.trail = [tr for tr in self.trail if tr[4] > 0]
+
     # -- física
     def update(self, dt):
         self.t += dt
-        for f in self.flakes:
-            f[1] += (28 + 24 * f[2]) * dt
-            f[0] += math.sin(self.t * 0.8 + f[1] * 0.02) * 12 * dt
-            if f[1] > H:
-                f[0], f[1] = random.uniform(0, W), -4
-        if self.shake > 0:
-            self.shake = max(0.0, self.shake - dt)
+        self._update_ambience(dt)
 
         if self.state == DEAD:
             self.dead_t += dt
@@ -346,22 +576,33 @@ class Game:
                 self.y = min(GROUND_Y - TUX_R, self.y + self.vy * dt)
             return
 
-        self.scroll = (self.scroll + SPEED * dt) % 48
+        self.scroll = (self.scroll + self.speed * dt) % 48
         if self.state == READY:
             self.y = H * 0.42 + math.sin(self.t * 4) * 8
             return
 
+        self.pt += dt
+        L = self.lvl
+        self.speed = approach(self.speed, BASE_SPEED + 10 * L, 25 * dt)
+        self.gap = approach(self.gap, BASE_GAP - 6 * L, 15 * dt)
+        self.amp = approach(self.amp, AMP[L], 12 * dt)
+
         self.vy = min(MAX_FALL, self.vy + GRAVITY * dt)
         self.y += self.vy * dt
         for p in self.pipes:
-            p[0] -= SPEED * dt
+            p[0] -= self.speed * dt
             if not p[2] and p[0] + PIPE_W / 2 < TUX_X:
                 p[2] = True
                 self.score += 1
                 self._play("score")
+                self._check_level()
         if self.pipes and self.pipes[0][0] + CAP_W / 2 < -10:
             self.pipes.pop(0)
-            self._add_pipe(self.pipes[-1][0] + SPACING)
+            self._add_pipe(self.pipes[-1][0] + BASE_SPACING + 15 * self.lvl)
+
+        if L >= 2:  # estela de brasas
+            self.trail.append([TUX_X - 12, self.y + random.uniform(-2, 8), -self.speed * 0.4 + random.uniform(-20, 20),
+                               random.uniform(-20, 40), 0.5])
 
         if self.y + TUX_R >= GROUND_Y:
             self.y = GROUND_Y - TUX_R
@@ -374,8 +615,9 @@ class Game:
             self.die()
 
     def _hits_pipe(self):
-        for x, c, _ in self.pipes:
-            top_end, bot_start = c - GAP / 2, c + GAP / 2
+        for p in self.pipes:
+            x, c = p[0], self.center(p)
+            top_end, bot_start = c - self.gap / 2, c + self.gap / 2
             for w, rects in ((PIPE_W, ((0, top_end - CAP_H), (bot_start + CAP_H, GROUND_Y))),
                              (CAP_W, ((top_end - CAP_H, top_end), (bot_start, bot_start + CAP_H)))):
                 for y0, y1 in rects:
@@ -388,44 +630,82 @@ class Game:
 
     # -- dibujo
     def text(self, surf, s, font, pos, color=(255, 255, 255), center=True):
-        sh = font.render(s, True, (20, 50, 80))
+        sh = font.render(s, True, (20, 30, 50))
         im = font.render(s, True, color)
         r = im.get_rect(center=pos) if center else im.get_rect(topleft=pos)
         surf.blit(sh, r.move(2, 3))
         surf.blit(im, r)
 
+    def draw_world(self, surf, L):
+        A = self.assets[L]
+        surf.blit(A["sky"], (0, 0))
+        for key, speed, y in (("far", 6, GROUND_Y - 250), ("near", 18, GROUND_Y - 235)):
+            img = A[key]
+            iw = img.get_width()
+            ox = -((self.t * speed) % iw)
+            surf.blit(img, (ox, y))
+            surf.blit(img, (ox + iw, y))
+        sp_fill, sp_edge = A["spike"]
+        for p in self.pipes:
+            x, cy = p[0], self.center(p)
+            top_end, bot_start = int(cy - self.gap / 2), int(cy + self.gap / 2)
+            th = max(0, top_end - CAP_H)
+            surf.blit(A["cyl"], (x - PIPE_W / 2, 0), (0, H - th, PIPE_W, th))
+            surf.blit(A["cap_flip"], (x - CAP_W / 2, top_end - CAP_H))
+            surf.blit(A["cap"], (x - CAP_W / 2, bot_start))
+            surf.blit(A["cyl"], (x - PIPE_W / 2, bot_start + CAP_H), (0, 0, PIPE_W, GROUND_Y - bot_start - CAP_H))
+            tip = [(x - 14, top_end), (x + 14, top_end), (x, top_end + 20)]
+            pygame.draw.polygon(surf, sp_fill, tip)
+            pygame.draw.polygon(surf, sp_edge, tip, 2)
+        surf.blit(A["ground"], (-self.scroll, GROUND_Y))
+
     def draw(self):
         c = self.canvas
-        c.blit(self.sky, (0, 0))
-        off_far = -(self.t * 6) % (W * 2) if self.state != DEAD else -(self.t * 6) % (W * 2)
-        for img, speed, y in ((self.far, 6, GROUND_Y - 250), (self.near, 18, GROUND_Y - 235)):
-            ox = -((self.t * speed) % W) if self.state != DEAD else -((self.t * speed) % W)
-            c.blit(img, (ox, y))
-            c.blit(img, (ox + img.get_width(), y))
+        L = self.lvl
+        if self.mix < 1:
+            self.draw_world(c, self.prev)
+            self.draw_world(self.buf, L)
+            self.buf.set_alpha(int(255 * self.mix))
+            c.blit(self.buf, (0, 0))
+        else:
+            self.draw_world(c, L)
 
-        for x, cy, _ in self.pipes:
-            top_end, bot_start = cy - GAP / 2, cy + GAP / 2
-            c.blit(self.cyl, (x - PIPE_W / 2, 0), (0, H - max(0, top_end - CAP_H), PIPE_W, max(0, top_end - CAP_H)))
-            c.blit(self.cap_flip, (x - CAP_W / 2, top_end - CAP_H))
-            c.blit(self.cap, (x - CAP_W / 2, bot_start))
-            c.blit(self.cyl, (x - PIPE_W / 2, bot_start + CAP_H), (0, 0, PIPE_W, GROUND_Y - bot_start - CAP_H))
-            # punta de carámbano colgante en el cap superior
-            pygame.draw.polygon(c, (170, 226, 247), [(x - 14, top_end), (x + 14, top_end), (x, top_end + 20)])
-            pygame.draw.polygon(c, (110, 180, 220), [(x - 14, top_end), (x + 14, top_end), (x, top_end + 20)], 2)
+        if L >= 3:  # langostas
+            for x, y, ph, _ in self.locusts:
+                fl = 3 if int(self.t * 22 + ph * 3) % 2 else 1
+                pygame.draw.ellipse(c, (60, 34, 16), (x, y, 6, 3))
+                pygame.draw.line(c, (140, 100, 50), (x + 2, y), (x, y - fl), 1)
+        for mx, my, vx, vy in self.meteors:  # lluvia de fuego
+            pygame.draw.line(c, (255, 140, 40), (mx, my), (mx - vx * 0.09, my - vy * 0.09), 4)
+            pygame.draw.line(c, (255, 220, 140), (mx, my), (mx - vx * 0.04, my - vy * 0.04), 2)
+            pygame.draw.circle(c, (255, 250, 220), (int(mx), int(my)), 3)
 
-        gx = -self.scroll
-        c.blit(self.ground, (gx, GROUND_Y))
+        tcol = ((255, 150, 40), (255, 150, 40), (255, 150, 40), (255, 70, 50), (255, 210, 90))[L]
+        for x, y, _, _, life in self.trail:
+            pygame.draw.circle(c, tcol, (int(x), int(y)), 1 + int(life * 5))
 
-        # Tux
         frame = 1
         if self.state != DEAD:
             frame = (0, 1, 2, 1)[int(self.t * 12) % 4] if (self.vy < 120 or self.state == READY) else 2
         ang = max(-28, min(70, self.vy * 0.09)) if self.state != READY else 0
-        img = pygame.transform.rotozoom(self.tux[frame], -ang, 1.0)
-        c.blit(img, img.get_rect(center=(TUX_X, self.y)))
+        img = pygame.transform.rotozoom(self.tux[TUX_VARIANT[L]][frame], -ang, 1.0)
+        c.blit(img, img.get_rect(center=(TUX_X, self.y - PAD / 2)))
 
+        col, _, _ = FLAKES[L]
         for fx, fy, sz in self.flakes:
-            pygame.draw.circle(c, (255, 255, 255), (int(fx), int(fy)), 1 + int(sz > 1.1))
+            pygame.draw.circle(c, col, (int(fx), int(fy)), 1 + int(sz > 1.1))
+
+        if self.bolt_t > 0 and self.bolt:
+            pygame.draw.lines(c, (190, 190, 255), False, self.bolt, 7)
+            pygame.draw.lines(c, (255, 255, 255), False, self.bolt, 3)
+        if self.flash > 0:
+            self.flash_surf.set_alpha(int(170 * self.flash))
+            c.blit(self.flash_surf, (0, 0))
+
+        vig = lerp((0, 0, 70, 150, 230)[self.prev], (0, 0, 70, 150, 230)[L], self.mix)
+        if vig > 0:
+            self.vignette.set_alpha(int(vig))
+            c.blit(self.vignette, (0, 0))
 
         # HUD
         if self.state == PLAYING:
@@ -436,6 +716,8 @@ class Game:
             self.text(c, f"Récord: {self.best}", self.font_sm, (W // 2, GROUND_Y + 40))
         else:
             self._draw_gameover(c)
+        if self.banner_t > 0 and self.state == PLAYING:
+            self._draw_banner(c)
 
         out = c
         if self.shake > 0:
@@ -443,6 +725,16 @@ class Game:
             m = int(self.shake * 22)
             out.blit(c, (random.randint(-m, m), random.randint(-m, m)))
         self._present(out)
+
+    def _draw_banner(self, c):
+        a = min(1.0, self.banner_t / 0.5, (3.4 - self.banner_t) / 0.4)
+        s = pygame.Surface((W, 110), pygame.SRCALPHA)
+        info = LEVELS[self.lvl]
+        self.text(s, f"NIVEL {self.lvl + 1}", self.font_sm, (W // 2, 16), (255, 210, 120))
+        self.text(s, info["name"], self.font_ban, (W // 2, 48))
+        self.text(s, info["sub"], self.font_sm, (W // 2, 86), (235, 220, 210))
+        s.set_alpha(int(255 * a))
+        c.blit(s, (0, 120))
 
     def _draw_gameover(self, c):
         a = min(1.0, self.dead_t / 0.35)
@@ -452,7 +744,7 @@ class Game:
         panel.set_alpha(int(255 * a))
         c.blit(panel, ((W - 250) // 2, 150 - int((1 - a) * 40)))
         if a >= 1.0:
-            self.text(c, "Game Over", self.font_mid, (W // 2, 188), (200, 60, 50))
+            self.text(c, LEVELS[self.lvl]["dead"], self.font_mid, (W // 2, 188), (200, 60, 50))
             self.text(c, f"Puntos: {self.score}", self.font_mid, (W // 2, 238), (30, 70, 110))
             self.text(c, f"Récord: {self.best}", self.font_sm, (W // 2, 278), (30, 70, 110))
             if self.new_best:
