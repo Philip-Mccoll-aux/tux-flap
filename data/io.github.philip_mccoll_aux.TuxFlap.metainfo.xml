@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.philip_mccoll_aux.TuxFlap</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Tux Flap</name>
+  <summary>Flappy-style arcade game starring Tux and icy cylinders</summary>
+  <summary xml:lang="es">Juego arcade tipo Flappy con Tux y témpanos cilíndricos</summary>
+  <description>
+    <p>Tap to flap and guide Tux the penguin between cylindrical icicles without touching them. Every pair you pass is one point. Simple, quick and made for touchscreens, including Plasma Mobile phones, but also playable with a mouse or the space bar.</p>
+    <p xml:lang="es">Toca para aletear y guía al pingüino Tux entre témpanos cilíndricos sin chocar. Cada par que pasas suma un punto. Simple, rápido y pensado para pantallas táctiles, incluidos los teléfonos con Plasma Mobile, pero también se juega con ratón o barra espaciadora.</p>
+  </description>
+  <launchable type="desktop-id">io.github.philip_mccoll_aux.TuxFlap.desktop</launchable>
+  <provides><binary>tuxflap</binary></provides>
+  <categories><category>Game</category><category>ArcadeGame</category></categories>
+  <keywords><keyword>flappy</keyword><keyword>penguin</keyword><keyword>tux</keyword><keyword>arcade</keyword></keywords>
+  <content_rating type="oars-1.1"/>
+  <supports><control>touch</control><control>pointing</control><control>keyboard</control></supports>
+  <requires><display_length compare="ge">360</display_length></requires>
+  <recommends><display_length compare="ge">360</display_length></recommends>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/Philip-Mccoll-aux/tux-flap/main/screenshots/play.png</image>
+      <caption>Tux dodging icicles</caption>
+    </screenshot>
+  </screenshots>
+  <url type="homepage">https://github.com/Philip-Mccoll-aux/tux-flap</url>
+  <url type="bugtracker">https://github.com/Philip-Mccoll-aux/tux-flap/issues</url>
+  <developer id="io.github.philip_mccoll_aux"><name>Tux Flap contributors</name></developer>
+  <releases>
+    <release version="1.0.0" date="2026-11-05"><description><p>First release.</p></description></release>
+  </releases>
+</component>

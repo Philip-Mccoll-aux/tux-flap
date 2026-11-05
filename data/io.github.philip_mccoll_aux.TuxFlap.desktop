@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Tux Flap
+Name[es]=Tux Flap
+Comment=Guide Tux through the icicles
+Comment[es]=Guía a Tux entre los témpanos de hielo
+Exec=tuxflap
+Icon=io.github.philip_mccoll_aux.TuxFlap
+Terminal=false
+Categories=Game;ArcadeGame;
+Keywords=flappy;penguin;tux;arcade;touch;
+X-KDE-FormFactor=handset;desktop;tablet;

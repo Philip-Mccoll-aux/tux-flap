@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tuxflap"
+version = "1.0.0"
+description = "Flappy-style game with Tux and icy cylinders"
+requires-python = ">=3.9"
+dependencies = ["pygame-ce>=2.5"]
+license = "GPL-3.0-or-later"
+
+[project.scripts]
+tuxflap = "tuxflap.game:main"
+
+[tool.setuptools]
+packages = ["tuxflap"]

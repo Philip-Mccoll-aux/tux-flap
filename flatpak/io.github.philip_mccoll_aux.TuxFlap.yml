@@ -1,0 +1,35 @@
+app-id: io.github.philip_mccoll_aux.TuxFlap
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+command: tuxflap
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --device=dri
+modules:
+  - name: pygame-ce
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-index --no-deps --find-links=. --prefix=${FLATPAK_DEST} pygame-ce
+    sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/27/4d/03fd52c7f958b8e929757a118cada9aee16ae9d4fd84f2682ee0cbd3941d/pygame_ce-2.5.8-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+        sha256: 5bb966b610e161a8f6d908b4c62ef3a1f3e922bc7bed73bd70a3e15dc780b90e
+        only-arches: [x86_64]
+      - type: file
+        url: https://files.pythonhosted.org/packages/4d/fe/4be67df98bb05f7b024900f80fe4d07a72cec7022262d17c449b2a9f6034/pygame_ce-2.5.8-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl
+        sha256: e3183bc0d808e739ca2400df45a5bfae10704ccbcacab0f04f9adc9027e86427
+        only-arches: [aarch64]
+  - name: tuxflap
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-index --no-deps --prefix=${FLATPAK_DEST} .
+      - install -Dm644 data/io.github.philip_mccoll_aux.TuxFlap.desktop -t ${FLATPAK_DEST}/share/applications
+      - install -Dm644 data/io.github.philip_mccoll_aux.TuxFlap.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo
+      - install -Dm644 data/io.github.philip_mccoll_aux.TuxFlap.svg -t ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps
+    sources:
+      - type: dir
+        path: ..
