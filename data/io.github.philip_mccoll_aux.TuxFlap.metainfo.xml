@@ -7,8 +7,8 @@
   <summary>Flappy-style arcade game where Tux's icy world mutates into an apocalypse</summary>
   <summary xml:lang="es">Arcade tipo Flappy donde el mundo helado de Tux muta hasta el apocalipsis</summary>
   <description>
-    <p>Tap to flap and guide Tux the penguin between cylindrical icicles without touching them. Every pair you pass is one point. The longer you survive, the stranger it gets: the ice melts, the sky catches fire, locusts and lightning arrive, and the world ends in eclipse and a rain of meteors, while Tux slowly turns into a six-winged seraph. Quick, simple and made for touchscreens, including Plasma Mobile phones, but also playable with a mouse or the space bar.</p>
-    <p xml:lang="es">Toca para aletear y guía al pingüino Tux entre témpanos cilíndricos sin chocar. Cada par que pasas suma un punto. Mientras más sobrevives, más raro se pone: el hielo se derrite, el cielo arde, llegan langostas y relámpagos, y el mundo termina en eclipse y lluvia de meteoros, mientras Tux se va convirtiendo en un serafín de seis alas. Rápido, simple y pensado para pantallas táctiles, incluidos los teléfonos con Plasma Mobile, pero también se juega con ratón o barra espaciadora.</p>
+    <p>Tap to flap and guide Tux the penguin between cylindrical icicles without touching them. Every pair you pass is one point. The longer you survive, the stranger it gets: the ice melts, the sky catches fire, locusts and lightning arrive, and the world ends in eclipse and a rain of meteors, while Tux slowly turns into a many-winged, many-eyed biblical seraph. It never stops mutating. Quick, simple and made for touchscreens, including Plasma Mobile phones, but also playable with a mouse or the space bar.</p>
+    <p xml:lang="es">Toca para aletear y guía al pingüino Tux entre témpanos cilíndricos sin chocar. Cada par que pasas suma un punto. Mientras más sobrevives, más raro se pone: el hielo se derrite, el cielo arde, llegan langostas y relámpagos, y el mundo termina en eclipse y lluvia de meteoros, mientras Tux se va convirtiendo en un serafín bíblico de muchas alas y ojos. Nunca deja de mutar. Rápido, simple y pensado para pantallas táctiles, incluidos los teléfonos con Plasma Mobile, pero también se juega con ratón o barra espaciadora.</p>
   </description>
   <launchable type="desktop-id">io.github.philip_mccoll_aux.TuxFlap.desktop</launchable>
   <provides><binary>tuxflap</binary></provides>
@@ -20,15 +20,15 @@
   <screenshots>
     <screenshot type="default">
       <image>https://raw.githubusercontent.com/Philip-Mccoll-aux/tux-flap/main/screenshots/1-eden-de-hielo.png</image>
-      <caption>Edén de Hielo: Tux esquiva témpanos cilíndricos</caption>
+      <caption>Edén de Hielo: Tux esquiva columnas de hielo</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/Philip-Mccoll-aux/tux-flap/main/screenshots/2-plaga-de-fuego.png</image>
-      <caption>El mundo muta: Plaga de Fuego</caption>
+      <image>https://raw.githubusercontent.com/Philip-Mccoll-aux/tux-flap/main/screenshots/2-abismo.png</image>
+      <caption>El mundo muta sin parar: el abismo se abre</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/Philip-Mccoll-aux/tux-flap/main/screenshots/3-apocalipsis.png</image>
-      <caption>Apocalipsis: eclipse, meteoros y columnas de fuego</caption>
+      <image>https://raw.githubusercontent.com/Philip-Mccoll-aux/tux-flap/main/screenshots/3-serafin-y-ojos.png</image>
+      <caption>Tux, convertido en serafín, entre cielos llenos de ojos</caption>
     </screenshot>
   </screenshots>
   <url type="homepage">https://github.com/Philip-Mccoll-aux/tux-flap</url>
